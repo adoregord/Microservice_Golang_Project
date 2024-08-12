@@ -2,15 +2,18 @@ package initialize
 
 import (
 	"context"
+	"database/sql"
 	"microservice_orchestrator/internal/domain"
 	"microservice_orchestrator/internal/kafka"
+	"microservice_orchestrator/internal/repository"
+	"microservice_orchestrator/internal/usecase"
 	"sync"
 
 	"github.com/rs/zerolog/log"
 )
 
 // StartConsumer starts consuming messages from the Kafka topic
-func StartConsumer() {
+func StartConsumer(db *sql.DB) {
 	kafkaConfig := domain.KafkaConfig{
 		Brokers: []string{"127.0.0.1:29092"},
 		GroupID: "Orchestrator_Kafka_Consumer",
@@ -25,7 +28,10 @@ func StartConsumer() {
 	}
 	defer producer.Close()
 
-	handler := kafka.NewMessageHandler(producer)
+	repo := repository.NewOrchestratorRepo(db)
+	uc := usecase.NewOrchestratorUsecase(producer, repo)
+
+	handler := kafka.NewMessageHandler(producer, uc)
 
 	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, []string{kafkaConfig.Topic}, handler)
 	if err != nil {
