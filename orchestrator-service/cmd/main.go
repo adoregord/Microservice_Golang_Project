@@ -1,7 +1,9 @@
 package main
 
-import "microservice_orchestrator/internal/util"
+import (
+	"microservice_orchestrator/internal/provider/initialize"
+)
 
 func main() {
-	util.StartConsumer()
+	initialize.StartConsumer()
 }

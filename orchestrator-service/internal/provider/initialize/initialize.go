@@ -1,12 +1,12 @@
-package util
+package initialize
 
 import (
 	"context"
-	"fmt"
-	"github.com/rs/zerolog/log"
 	"microservice_orchestrator/internal/domain"
 	"microservice_orchestrator/internal/kafka"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 )
 
 // StartConsumer starts consuming messages from the Kafka topic
@@ -20,7 +20,7 @@ func StartConsumer() {
 	// setup kafka producer for kafka for user and package
 	producer, err := kafka.NewKafkaProducer(kafkaConfig.Brokers)
 	if err != nil {
-		log.Info().Msg(fmt.Sprintf("Failed to produce new producer for kafka: %s\n", err))
+		log.Info().Msgf("Failed to produce new producer for kafka: %s\n", err)
 		return
 	}
 	defer producer.Close()
@@ -29,11 +29,11 @@ func StartConsumer() {
 
 	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, []string{kafkaConfig.Topic}, handler)
 	if err != nil {
-		log.Fatal().Msg(fmt.Sprintf("Failed to create consumer: %v", err))
+		log.Fatal().Msgf("Failed to create consumer: %v", err)
 	}
 	defer consumer.Close()
 
-	log.Info().Msg(("Listening for messages..."))
+	log.Info().Msg("Listening for messages...")
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -41,7 +41,7 @@ func StartConsumer() {
 		// read message from topic
 		defer wg.Done()
 		if err := consumer.Consume(context.Background()); err != nil {
-			log.Info().Msg(fmt.Sprintf("Error from consumer: %v", err))
+			log.Info().Msgf("Error from consumer: %v", err)
 		}
 	}()
 	wg.Wait()

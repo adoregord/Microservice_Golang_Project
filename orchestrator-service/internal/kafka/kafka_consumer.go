@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"microservice_orchestrator/internal/domain"
-
-	"github.com/rs/zerolog/log"
 
 	"github.com/IBM/sarama"
 )
@@ -32,7 +30,7 @@ func (h MessageHandler) Setup(_ sarama.ConsumerGroupSession) error   { return ni
 func (h MessageHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
 func (h MessageHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	if h.Producer == nil {
-		log.Info().Msg("Producer is nil! Make sure it's initialized properly.")
+		log.Println("Producer is nil! Make sure it's initialized properly.")
 		return errors.New("kafka producer is not initialized")
 	}
 
@@ -63,22 +61,22 @@ func (h MessageHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sar
 					Value: sarama.ByteEncoder(responseBytes),
 				})
 				if err != nil {
-					log.Info().Msg(fmt.Sprintf("Error writing message to topic_validateUser: %v\n", err))
+					log.Printf("Error writing message to topic_validateUser: %v\n", err)
 					continue
 				}
-				log.Info().Msg(fmt.Sprintf("Message sent to topic_validate_user: %s\n\n", string(responseBytes)))
+				log.Printf("Message sent to topic_validate_user: %s\n\n", string(responseBytes))
 
 			} else if incoming.OrderService == "Verify User" {
 
 				responseBytes, err := json.Marshal(incoming)
 				if err != nil {
-					log.Info().Msg(fmt.Sprintf("Failed to marshal message: %v\n", err))
+					log.Printf("Failed to marshal message: %v\n", err)
 					continue
 				}
 
-				if incoming.RespCode == 400 || incoming.RespCode == 401 {
+				if incoming.RespCode == 400 || incoming.RespCode == 401{
 					// update to db set the
-					log.Info().Msg(string(responseBytes))
+					log.Println(string(responseBytes))
 					incoming.RespMessage = "FAILED, user is not valid or verified"
 					continue
 				}
@@ -89,19 +87,19 @@ func (h MessageHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sar
 					Value: sarama.ByteEncoder(responseBytes),
 				})
 				if err != nil {
-					log.Info().Str("Error writing message to topic_activatePackage:", err.Error())
+					log.Printf("Error writing message to topic_activatePackage: %v\n", err)
 					continue
 				}
-				log.Info().Str("Message sent to topic_activatePackage: ", string(responseBytes))
+				log.Printf("Message sent to topic_activatePackage: %s\n\n", string(responseBytes))
 
 			} else if incoming.OrderService == "activatePackage" {
 				// Log the completion message
-				log.Info().Msg("===============================================================================================")
-				log.Info().Msg(fmt.Sprintf("Transaction ID %s for order type '%s' is COMPLETED\n", incoming.TransactionId, incoming.OrderType))
-				log.Info().Msg("===============================================================================================")
+				log.Printf("===============================================================================================")
+				log.Printf("Transaction ID %s for order type '%s' is COMPLETED\n", incoming.TransactionId, incoming.OrderType)
+				log.Printf("===============================================================================================")
 			}
 		default:
-			log.Info().Msg(fmt.Sprintf("Received unsupported message format: %v\n\n", incoming))
+			log.Printf("Received unsupported message format: %v\n\n", incoming)
 		}
 	}
 	return nil
