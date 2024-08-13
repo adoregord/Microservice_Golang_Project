@@ -2,8 +2,9 @@ package jasonwebtoken
 
 import (
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
 	"order_microservice/internal/domain"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var key = []byte("ayam")
@@ -21,7 +22,6 @@ func VerifyJWT(tokenStr string) (*domain.JwtClaims, error) {
 	}
 
 	klem := token.Claims.(*domain.JwtClaims)
-	fmt.Println(klem.Username)
 
 	return klem, nil
 }
