@@ -1,54 +1,77 @@
 package usecase
 
 import (
+	"context"
 	"encoding/json"
 	"order_microservice/internal/domain"
-	"order_microservice/internal/kafka"
+	"order_microservice/internal/repository"
+	"strconv"
 
 	"log"
+
+	"github.com/IBM/sarama"
 )
 
-func OrderUsecase(orderReq *domain.OrderRequest) (int32, int64, error) {
-	kafkaConfig := domain.KafkaConfig{
-		Brokers: []string{"127.0.0.1:29092"},
-		Topic:   "order_topic1",
-	}
+type OrderUsecaseInterface interface {
+	OrderInit
+}
 
-	// Create an IncomingMessage struct
-	incomingMsg := domain.IncomingMessage{
-		OrderType:     orderReq.OrderType,
-		OrderService:  "Order Init",
-		TransactionId: orderReq.TransactionID,
-		UserId:        orderReq.UserId,
-		PackageId:     orderReq.PackageId,
-		RespStatus:    "On-Going",
-		RespMessage:   "",
-		RespCode:      0,
-	}
+type OrderInit interface {
+	OrderInit(orderReq *domain.OrderRequest, kontek context.Context) (*domain.Message, error)
+}
 
-	log.Println("Incoming message: ", incomingMsg)
+type OrderUsecase struct {
+	repo     repository.OrderRepoInterface
+	Producer sarama.SyncProducer
+}
+
+func NewOrderUsecase(Repo repository.OrderRepoInterface, producer sarama.SyncProducer) OrderUsecaseInterface {
+	return OrderUsecase{
+		repo:     Repo,
+		Producer: producer,
+	}
+}
+
+func (uc OrderUsecase) OrderInit(orderReq *domain.OrderRequest, kontek context.Context) (*domain.Message, error) {
+	topic := "orchestrator_topic" // will send to this topic always
+
+	// save to db first
+	message, err := uc.repo.StoreOrderDetails(*orderReq, kontek)
+	if err != nil {
+		return nil, err
+	}
+	// set message order service to order init
+	message.OrderService = "Order Init"
 
 	// Marshall the incoming message struct to JSON
-	msgValue, err := json.Marshal(incomingMsg)
+	msgValue, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Failed to marshal incoming message: %s\n", err)
-		return 0, 0, err
+		return nil, err
 	}
 
-	// Create a new producer for Kafka
-	producer, err := kafka.NewKafkaProducer(kafkaConfig.Brokers)
-	if err != nil {
-		log.Printf("Failed to produce new producer for Kafka: %s\n", err)
-		return 0, 0, err
-	}
-	defer producer.Close()
-
+	//change to string
+	key := strconv.Itoa(orderReq.ID)
 	// Send the message to Kafka
-	partition, offset, err := kafka.SendMessage(producer, kafkaConfig.Topic, []byte(orderReq.TransactionID), msgValue)
+	_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+		Topic: topic,
+		Key:   sarama.ByteEncoder(key),
+		Value: sarama.ByteEncoder(msgValue),
+	})
+
 	if err != nil {
 		log.Printf("Failed to send message: %s\n", err)
-		return 0, 0, err
+		return nil, err
 	}
 
-	return partition, offset, nil
+	log.Printf("Message sent to %s with data %v", topic, message)
+	return message, nil
 }
+
+// Create a new producer for Kafka
+// producer, err := kafka.NewKafkaProducer(kafkaConfig.Brokers)
+// if err != nil {
+// 	log.Printf("Failed to produce new producer for Kafka: %s\n", err)
+// 	return 0, 0, err
+// }
+// defer producer.Close()

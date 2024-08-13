@@ -1,13 +1,17 @@
 package main
 
 import (
-	"fmt"
-	"order_microservice/internal/provider/routes"
+	"log"
+	"order_microservice/internal/provider/database"
+	"order_microservice/internal/provider/initialize"
 )
 
 func main() {
-	err := routes.SetupRoutes().Run("127.0.0.1:8081")
+	database, err := database.DBConnection()
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Fatal(err)
 	}
+	defer database.Close()
+
+	initialize.StartConsumer(database)
 }

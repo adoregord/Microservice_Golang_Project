@@ -6,13 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes() *gin.Engine {
+func SetupRoutes(h handler.OrderHandlerInterface) *gin.Engine {
 	// gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
+	router := gin.Default()
 
 	orderRoutes := router.Group("/order")
 	{
-		orderRoutes.POST("/", handler.OrderHandler)
+		orderRoutes.POST("/", h.OrderInit)
 	}
 
 	return router
