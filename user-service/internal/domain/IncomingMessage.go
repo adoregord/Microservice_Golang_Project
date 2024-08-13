@@ -1,13 +1,14 @@
 package domain
 
-// IncomingMessage represents the structure of the incoming messages
-type IncomingMessage struct {
-	OrderType     string `json:"orderType"`
-	OrderService  string `json:"orderService,omitempty"`
-	TransactionId string `json:"transactionId"`
-	UserId        string `json:"userId"`
-	PackageId     string `json:"packageId"`
-	RespStatus    string `json:"respStatus,omitempty"`
-	RespMessage   string `json:"respMessage,omitempty"`
-	RespCode      int    `json:"respCode,omitempty"`
+type Message struct {
+	OrderID      int    `json:"orderID"`
+	OrderType    string `json:"orderType"`
+	OrderService string `json:"orderService,omitempty"`
+	UserId       string `json:"userId"`
+	PackageID    int    `json:"packageID"`
+	RespStatus   string `json:"respStatus,omitempty"`
+	RespMessage  string `json:"respMessage,omitempty"`
+	RespCode     int    `json:"respCode,omitempty"`
+	Total        int    `json:"total,omitempty"`
+	Amount       int    `json:"amount"`
 }

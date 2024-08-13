@@ -6,7 +6,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-
 func VerifyJWT(tokenStr string) (*Claimsasdasda, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claimsasdasda{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -20,7 +19,6 @@ func VerifyJWT(tokenStr string) (*Claimsasdasda, error) {
 	}
 
 	klem := token.Claims.(*Claimsasdasda)
-	fmt.Println(klem.Username)
 
 	return klem, nil
 }

@@ -11,7 +11,7 @@ import (
 )
 
 // for consuming the message that were sent to topic 'user_topic_validate'
-func StartConsumeFromOrder(usecase *usecase.UserUsecase) {
+func StartConsumeFromOrder() {
 	kafkaConfig := domain.KafkaConfig{
 		Brokers: []string{"127.0.0.1:29092"}, // Replace with your Kafka broker addresses
 		GroupID: "user-consumer-group",
@@ -26,6 +26,7 @@ func StartConsumeFromOrder(usecase *usecase.UserUsecase) {
 	}
 	defer producer.Close()
 
+	usecase := usecase.NewUserUsecase(producer)
 	handler := kafka.NewMessageHandler(producer, usecase)
 
 	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, []string{kafkaConfig.Topic}, handler)
@@ -36,6 +37,8 @@ func StartConsumeFromOrder(usecase *usecase.UserUsecase) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	log.Print("Listening for messages...")
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

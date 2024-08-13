@@ -4,27 +4,16 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	provider "user_microservice/internal/provider/db"
 	"user_microservice/internal/provider/initialize"
-	"user_microservice/internal/repository"
-	"user_microservice/internal/usecase"
 
-	"github.com/rs/zerolog/log"
+	"log"
 
 	"syscall"
 )
 
 func main() {
-	database, err := provider.DBConnection()
-	if err != nil {
-		log.Fatal().Err(err)
-	}
-	defer database.Close()
 
-	userRepo := repository.NewUserRepo(database)
-	userUsecase := usecase.NewUserUsecase(userRepo)
-
-	initialize.StartConsumeFromOrder(userUsecase)
+	initialize.StartConsumeFromOrder()
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

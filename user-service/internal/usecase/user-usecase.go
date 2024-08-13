@@ -2,22 +2,34 @@ package usecase
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"user_microservice/internal/domain"
-	"user_microservice/internal/repository"
 
-	"github.com/rs/zerolog/log"
+	"log"
+
+	"github.com/IBM/sarama"
 )
 
-type UserUsecase struct {
-	UserRepo repository.UserRepoInterface
+type UserUsecaseInterface interface {
+	ValidateUser
+	SendMessage
 }
 
-func NewUserUsecase(repo repository.UserRepoInterface) *UserUsecase {
+type ValidateUser interface{ ValidateUser(username string) bool }
+type SendMessage interface {
+	SendMessage(kontek context.Context, msg *sarama.ConsumerMessage) error
+}
+
+type UserUsecase struct {
+	Producer sarama.SyncProducer
+}
+
+func NewUserUsecase(producer sarama.SyncProducer) UserUsecaseInterface {
 	return &UserUsecase{
-		UserRepo: repo,
+		Producer: producer,
 	}
 }
 
@@ -37,7 +49,7 @@ func (uc UserUsecase) ValidateUser(username string) bool {
 	}
 
 	// Make the POST request to hit outbound request
-	log.Info().Str("Name", payload.Username).Msg("Hitting outbound api")
+	log.Println("Now hitting outbound service to validate user")
 	response, err := http.Post("https://7a70c146-33cd-4f4b-9b33-38cc4824afa0.mock.pstmn.io/chekuser", "application/json", bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		return false
@@ -57,12 +69,73 @@ func (uc UserUsecase) ValidateUser(username string) bool {
 		return false
 	}
 
-	//ok := uc.UserRepo.ValidateUser(&payload)
-
 	// Check if the status is success
 	if responseStruct.Status == "ok" {
 		return true
 	}
 
 	return false
+}
+
+func (uc UserUsecase) SendMessage(kontek context.Context, msg *sarama.ConsumerMessage) error {
+
+	topic := "orchestrator_topic" // always send to this topic
+
+	// Parse the incoming message
+	var incoming domain.Message
+	if err := json.Unmarshal(msg.Value, &incoming); err != nil {
+		return err
+	}
+
+	switch incoming.OrderType {
+	case "Buy Activation Key":
+		// set the service so orches know where the message came from
+		incoming.OrderService = "Verify User"
+		// call usecase to validate user
+		ok := uc.ValidateUser(incoming.UserId)
+		if !ok {
+			incoming.RespCode = 400
+			incoming.RespStatus = "Bad Request"
+			incoming.RespMessage = "User is not Valid"
+
+			responseBytes, err := json.Marshal(incoming)
+			if err != nil {
+				return err
+			}
+
+			_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+				Topic: topic,
+				Key:   sarama.ByteEncoder(msg.Key),
+				Value: sarama.ByteEncoder(responseBytes),
+			})
+			if err != nil {
+				return err
+			}
+			log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
+
+		} else {
+			incoming.RespCode = 200
+			incoming.RespStatus = "ok"
+			incoming.RespMessage = "User is Valid"
+
+			responseBytes, err := json.Marshal(incoming)
+			if err != nil {
+				return err
+			}
+
+			_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+				Topic: topic,
+				Key:   sarama.ByteEncoder(msg.Key),
+				Value: sarama.ByteEncoder(responseBytes),
+			})
+			if err != nil {
+				return err
+			}
+			log.Printf("Message sent to topic_validate_user: %s\n\n", string(responseBytes))
+		}
+
+	default:
+		log.Println("salah awokwok")
+	}
+	return nil
 }
