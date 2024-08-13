@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 )
 
@@ -38,6 +39,10 @@ func (repo OrchestratorRepo) ViewOrchesSteps(step_type string, step_name string,
 	var topic string
 	err := repo.db.QueryRowContext(kontek, query, step_type, step_name).Scan(&topic)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Printf("No topic found for step_type: %s and step_name: %s", step_type, step_name)
+			return "", errors.New("no data found in database 💀")
+		}
 		return "", err
 	}
 

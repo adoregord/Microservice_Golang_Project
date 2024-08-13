@@ -38,7 +38,7 @@ func (h MessageHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sar
 	for msg := range claim.Messages() {
 		err := h.usecase.ViewOrchesSteps(context.Background(), msg)
 		if err != nil {
-			return err
+			log.Println(err.Error())
 		}
 		sess.MarkMessage(msg, "")
 	}
