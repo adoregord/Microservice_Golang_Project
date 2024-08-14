@@ -32,7 +32,14 @@ func StartConsumer(db *sql.DB) {
 	repo := repository.NewOrderRepo(db)
 	uc := usecase.NewOrderUsecase(repo, producer)
 	h := handler.NewOrderHandler(uc)
-	routes.SetupRoutes(h).Run("127.0.0.1:8081")
+
+	// Start HTTP server in a separate goroutine
+	go func() {
+		log.Println("Starting HTTP server on 127.0.0.1:8081...")
+		if err := routes.SetupRoutes(h).Run("127.0.0.1:8081"); err != nil {
+			log.Fatalf("Failed to start HTTP server: %v", err)
+		}
+	}()
 
 	handler := kafka.NewMessageHandler(producer, uc)
 

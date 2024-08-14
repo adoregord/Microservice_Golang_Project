@@ -6,7 +6,7 @@ type Message struct {
 	OrderType    string `json:"orderType"`
 	OrderService string `json:"orderService,omitempty"`
 	UserId       string `json:"userId"`
-	PackageID    int    `json:"packageID"`
+	ItemID       int    `json:"itemID"`
 	RespStatus   string `json:"respStatus,omitempty"`
 	RespMessage  string `json:"respMessage,omitempty"`
 	RespCode     int    `json:"respCode,omitempty"`

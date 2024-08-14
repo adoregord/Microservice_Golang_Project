@@ -14,10 +14,14 @@ import (
 
 type OrderUsecaseInterface interface {
 	OrderInit
+	UpdateOrderDetails
 }
 
 type OrderInit interface {
 	OrderInit(orderReq *domain.OrderRequest, kontek context.Context) (*domain.Message, error)
+}
+type UpdateOrderDetails interface {
+	UpdateOrderDetails(msg *sarama.ConsumerMessage, kontek context.Context) error
 }
 
 type OrderUsecase struct {
@@ -68,10 +72,12 @@ func (uc OrderUsecase) OrderInit(orderReq *domain.OrderRequest, kontek context.C
 	return message, nil
 }
 
-// Create a new producer for Kafka
-// producer, err := kafka.NewKafkaProducer(kafkaConfig.Brokers)
-// if err != nil {
-// 	log.Printf("Failed to produce new producer for Kafka: %s\n", err)
-// 	return 0, 0, err
-// }
-// defer producer.Close()
+func (uc OrderUsecase) UpdateOrderDetails(msg *sarama.ConsumerMessage, kontek context.Context) error {
+	// Parse the incoming message
+	var incoming_message domain.Message
+	if err := json.Unmarshal(msg.Value, &incoming_message); err != nil {
+		return err
+	}
+
+	return uc.repo.UpdateOrderDetails(incoming_message, kontek)
+}

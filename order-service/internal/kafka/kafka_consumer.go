@@ -36,10 +36,10 @@ func (h MessageHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sar
 	}
 
 	for msg := range claim.Messages() {
-		// err := h.usecase.OrderInit()
-		// if err != nil {
-		// 	log.Println(err.Error())
-		// }
+		err := h.usecase.UpdateOrderDetails(msg, context.Background())
+		if err != nil {
+			log.Println(err.Error())
+		}
 		sess.MarkMessage(msg, "")
 	}
 	return nil

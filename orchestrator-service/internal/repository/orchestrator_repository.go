@@ -11,7 +11,7 @@ type OrchestratorRepoInterface interface {
 	ViewOrchesSteps
 }
 
-type ViewOrchesSteps interface{
+type ViewOrchesSteps interface {
 	ViewOrchesSteps(step_type string, step_name string, kontek context.Context) (string, error)
 }
 
@@ -19,7 +19,7 @@ type OrchestratorRepo struct {
 	db *sql.DB
 }
 
-func NewOrchestratorRepo(db *sql.DB) OrchestratorRepoInterface{
+func NewOrchestratorRepo(db *sql.DB) OrchestratorRepoInterface {
 	return OrchestratorRepo{
 		db: db,
 	}
@@ -41,7 +41,7 @@ func (repo OrchestratorRepo) ViewOrchesSteps(step_type string, step_name string,
 	if err != nil {
 		if err == sql.ErrNoRows {
 			log.Printf("No topic found for step_type: %s and step_name: %s", step_type, step_name)
-			return "", errors.New("no data found in database 💀")
+			return "", errors.New("no data of that step type in database 💀")
 		}
 		return "", err
 	}
