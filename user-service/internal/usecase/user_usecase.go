@@ -87,55 +87,36 @@ func (uc UserUsecase) SendMessage(kontek context.Context, msg *sarama.ConsumerMe
 		return err
 	}
 
-	switch incoming.OrderType {
-	case "Buy Activation Key":
-		// set the service so orches know where the message came from
-		incoming.OrderService = "Verify User"
-		// call usecase to validate user
-		ok := uc.ValidateUser(incoming.UserId)
-		if !ok {
-			incoming.RespCode = 400
-			incoming.RespStatus = "Bad Request"
-			incoming.RespMessage = "User is not Valid"
+	// set the service so orches know where the message came from
+	incoming.OrderService = "Verify User"
 
-			responseBytes, err := json.Marshal(incoming)
-			if err != nil {
-				return err
-			}
-
-			_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
-				Topic: topic,
-				Key:   sarama.ByteEncoder(msg.Key),
-				Value: sarama.ByteEncoder(responseBytes),
-			})
-			if err != nil {
-				return err
-			}
-			log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
-
-		} else {
-			incoming.RespCode = 200
-			incoming.RespStatus = "ok"
-			incoming.RespMessage = "User is Valid"
-
-			responseBytes, err := json.Marshal(incoming)
-			if err != nil {
-				return err
-			}
-
-			_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
-				Topic: topic,
-				Key:   sarama.ByteEncoder(msg.Key),
-				Value: sarama.ByteEncoder(responseBytes),
-			})
-			if err != nil {
-				return err
-			}
-			log.Printf("Message sent to topic_validate_user: %s\n\n", string(responseBytes))
+	// call usecase to validate user
+	ok := uc.ValidateUser(incoming.UserId)
+	defer func() {
+		responseBytes, err := json.Marshal(incoming)
+		if err != nil {
+			log.Println(err)
 		}
+		_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+			Topic: topic,
+			Key:   sarama.ByteEncoder(msg.Key),
+			Value: sarama.ByteEncoder(responseBytes),
+		})
+		if err != nil {
+			log.Println(err)
+		}
+		log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
+	}()
 
-	default:
-		log.Println("salah awokwok")
+	if !ok {
+		incoming.RespCode = 401
+		incoming.RespStatus = "Unauthorized "
+		incoming.RespMessage = "FAILED User is not Valid"
+	} else {
+		incoming.RespCode = 200
+		incoming.RespStatus = "ok"
+		incoming.RespMessage = "SUCCESS User is Valid"
 	}
+
 	return nil
 }

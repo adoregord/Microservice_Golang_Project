@@ -3,30 +3,34 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"github.com/IBM/sarama"
 	"log"
 	"microservice_orchestrator/internal/domain"
 	"microservice_orchestrator/internal/repository"
-
-	"github.com/IBM/sarama"
+	"strings"
 )
 
 type OrchestratorUsecaseInterface interface {
 	ViewOrchesSteps
+	OrchesLog
 }
 
 type ViewOrchesSteps interface {
 	ViewOrchesSteps(kontek context.Context, msg *sarama.ConsumerMessage) error
 }
-
-type OrchestratorUsecase struct {
-	Producer         sarama.SyncProducer
-	OrchestratorRepo repository.OrchestratorRepoInterface
+type OrchesLog interface {
+	OrchesLog(message domain.Message, kontek context.Context) error
 }
 
-func NewOrchestratorUsecase(producer sarama.SyncProducer, orchestratorRepo repository.OrchestratorRepoInterface) OrchestratorUsecaseInterface {
+type OrchestratorUsecase struct {
+	Producer sarama.SyncProducer
+	Repo     repository.OrchestratorRepoInterface
+}
+
+func NewOrchestratorUsecase(producer sarama.SyncProducer, repo repository.OrchestratorRepoInterface) OrchestratorUsecaseInterface {
 	return &OrchestratorUsecase{
-		Producer:         producer,
-		OrchestratorRepo: orchestratorRepo,
+		Producer: producer,
+		Repo:     repo,
 	}
 }
 
@@ -37,30 +41,17 @@ func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *saram
 		return err
 	}
 
-	topic, err := uc.OrchestratorRepo.ViewOrchesSteps(incoming_message.OrderType, incoming_message.OrderService, kontek)
-	if err != nil {
+	defer func() {
+		err := uc.OrchesLog(incoming_message, kontek)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
+	topic := uc.Repo.ViewOrchesSteps(&incoming_message, kontek)
+	// check if incoming message contains FAILED then it will be automatically go back to order
+	if strings.Contains(incoming_message.RespMessage, "FAILED") {
 		topic = "order_topic"
-		incoming_message.RespCode = 400
-		incoming_message.RespMessage = err.Error()
-		incoming_message.RespStatus = "FAILED"
-
-		responseBytes, err := json.Marshal(incoming_message)
-		if err != nil {
-			log.Printf("Failed to marshal message: %v\n\n", err)
-			return err
-		}
-
-		_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
-			Topic: topic,
-			Key:   sarama.ByteEncoder(msg.Key),
-			Value: sarama.ByteEncoder(responseBytes),
-		})
-		if err != nil {
-			return err
-		}
-
-		log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
-		return err
 	}
 
 	responseBytes, err := json.Marshal(incoming_message)
@@ -79,4 +70,8 @@ func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *saram
 	log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
 
 	return nil
+}
+
+func (uc OrchestratorUsecase) OrchesLog(message domain.Message, kontek context.Context) error {
+	return uc.Repo.OrchesLog(message, kontek)
 }
