@@ -37,6 +37,7 @@ func NewOrchestratorUsecase(producer sarama.SyncProducer, repo repository.Orches
 func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *sarama.ConsumerMessage) error {
 	// Parse the incoming message
 	var incoming_message domain.Message
+	log.Println("ini Topik: ", msg.Topic)
 	if err := json.Unmarshal(msg.Value, &incoming_message); err != nil {
 		return err
 	}
@@ -48,11 +49,32 @@ func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *saram
 		}
 	}()
 
-	topic := uc.Repo.ViewOrchesSteps(&incoming_message, kontek)
-	// check if incoming message contains FAILED then it will be automatically go back to order
+	var topic string
 	if strings.Contains(incoming_message.RespMessage, "FAILED") {
-		topic = "order_topic"
+		if incoming_message.Retry < 3 {
+			incoming_message.Retry += 1
+			topic = uc.Repo.ViewOrchesFailStep(&incoming_message, kontek)
+
+		} else {
+			topic = "order_topic"
+		}
+		responseBytes, err := json.Marshal(incoming_message)
+		if err != nil {
+			return err
+		}
+		_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+			Topic: topic,
+			Key:   sarama.ByteEncoder(msg.Key),
+			Value: sarama.ByteEncoder(responseBytes),
+		})
+		if err != nil {
+			return err
+		}
+		log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
+		return nil
 	}
+	topic = uc.Repo.ViewOrchesSteps(&incoming_message, kontek)
+	// check if incoming message contains FAILED then it will be automatically go back to order
 
 	responseBytes, err := json.Marshal(incoming_message)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 type OrderUsecaseInterface interface {
 	OrderInit
 	UpdateOrderDetails
+	OrderRetry
 }
 
 type OrderInit interface {
@@ -22,6 +23,9 @@ type OrderInit interface {
 }
 type UpdateOrderDetails interface {
 	UpdateOrderDetails(msg *sarama.ConsumerMessage, kontek context.Context) error
+}
+type OrderRetry interface {
+	OrderRetry(orderRetry *domain.RetryOrder, kontek context.Context) (*domain.Message, error)
 }
 
 type OrderUsecase struct {
@@ -80,4 +84,44 @@ func (uc OrderUsecase) UpdateOrderDetails(msg *sarama.ConsumerMessage, kontek co
 	}
 
 	return uc.repo.UpdateOrderDetails(incoming_message, kontek)
+}
+
+func (uc OrderUsecase) OrderRetry(orderRetry *domain.RetryOrder, kontek context.Context) (*domain.Message, error) {
+
+	topic := "orchestrator_topic" // will send to this topic always
+
+	// save update the db first
+	message, err := uc.repo.EditRetryOrder(orderRetry, kontek)
+	if err != nil {
+		return nil, err
+	}
+	// set message order service to order init
+	message.OrderService = "Order Init"
+	message.RespMessage = "EDIT and RETRY order"
+	message.RespStatus = "OK"
+	message.RespCode = 200
+
+	// Marshall the incoming message struct to JSON
+	msgValue, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Failed to marshal incoming message: %s\n", err)
+		return nil, err
+	}
+
+	//change to string
+	key := strconv.Itoa(orderRetry.OrderID)
+	// Send the message to Kafka
+	_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+		Topic: topic,
+		Key:   sarama.ByteEncoder(key),
+		Value: sarama.ByteEncoder(msgValue),
+	})
+
+	if err != nil {
+		log.Printf("Failed to send message: %s\n", err)
+		return nil, err
+	}
+
+	log.Printf("Message sent to %s with data %v", topic, message)
+	return message, nil
 }

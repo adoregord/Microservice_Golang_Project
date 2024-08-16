@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"user_microservice/internal/domain"
@@ -18,7 +20,9 @@ type UserUsecaseInterface interface {
 	SendMessage
 }
 
-type ValidateUser interface{ ValidateUser(username string) bool }
+type ValidateUser interface {
+	ValidateUser(incoming *domain.Message) error
+}
 type SendMessage interface {
 	SendMessage(kontek context.Context, msg *sarama.ConsumerMessage) error
 }
@@ -33,48 +37,54 @@ func NewUserUsecase(producer sarama.SyncProducer) UserUsecaseInterface {
 	}
 }
 
-func (uc UserUsecase) ValidateUser(username string) bool {
+func (uc UserUsecase) ValidateUser(incoming *domain.Message) error {
 	type responseStk struct {
 		Status  string `json:"status"`
 		Message string `json:"message"`
 	}
 
 	payload := domain.User{
-		Username: username,
+		Username: incoming.UserId,
 	}
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return false
+		return errors.New("FAILED at user validation")
 	}
 
 	// Make the POST request to hit outbound request
 	log.Println("Now hitting outbound service to validate user")
 	response, err := http.Post("https://7a70c146-33cd-4f4b-9b33-38cc4824afa0.mock.pstmn.io/chekuser", "application/json", bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return false
+		return errors.New("FAILED at user validation")
 	}
 	defer response.Body.Close()
 
 	// Read the response body
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return false
+		return errors.New("FAILED at user validation")
 	}
 
 	// Unmarshal the response JSON into responseStk struct
 	var responseStruct responseStk
 	err = json.Unmarshal(body, &responseStruct)
 	if err != nil {
-		return false
+		return errors.New("FAILED at user validation")
 	}
 
-	// Check if the status is success
-	if responseStruct.Status == "ok" {
-		return true
+	if responseStruct.Status != "OK" {
+		incoming.RespCode = 404
+		incoming.RespStatus = responseStruct.Status
+		incoming.RespMessage = fmt.Sprintf("FAILED %s", responseStruct.Message)
+		return nil
 	}
+	// update total price
+	incoming.RespCode = 200
+	incoming.RespStatus = "OK"
+	incoming.RespMessage = "SUCCESS user is verified"
 
-	return false
+	return nil
 }
 
 func (uc UserUsecase) SendMessage(kontek context.Context, msg *sarama.ConsumerMessage) error {
@@ -91,7 +101,6 @@ func (uc UserUsecase) SendMessage(kontek context.Context, msg *sarama.ConsumerMe
 	incoming.OrderService = "Verify User"
 
 	// call usecase to validate user
-	ok := uc.ValidateUser(incoming.UserId)
 	defer func() {
 		responseBytes, err := json.Marshal(incoming)
 		if err != nil {
@@ -108,14 +117,12 @@ func (uc UserUsecase) SendMessage(kontek context.Context, msg *sarama.ConsumerMe
 		log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
 	}()
 
-	if !ok {
-		incoming.RespCode = 401
-		incoming.RespStatus = "Unauthorized "
-		incoming.RespMessage = "FAILED User is not Valid"
-	} else {
-		incoming.RespCode = 200
-		incoming.RespStatus = "ok"
-		incoming.RespMessage = "SUCCESS User is Valid"
+	err := uc.ValidateUser(&incoming)
+	if err != nil {
+		incoming.RespCode = 500
+		incoming.RespStatus = "Internal Server Error"
+		incoming.RespMessage = fmt.Sprintf("FAILED USER VERIFY: %v", err)
+		return nil
 	}
 
 	return nil

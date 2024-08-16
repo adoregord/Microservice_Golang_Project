@@ -3,17 +3,22 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"microservice_orchestrator/internal/domain"
 )
 
 type OrchestratorRepoInterface interface {
 	ViewOrchesSteps
+	ViewOrchesFailStep
 	OrchesLog
 }
 
 type ViewOrchesSteps interface {
 	ViewOrchesSteps(incoming_message *domain.Message, kontek context.Context) string
+}
+type ViewOrchesFailStep interface {
+	ViewOrchesFailStep(incoming_message *domain.Message, kontek context.Context) string
 }
 type OrchesLog interface {
 	OrchesLog(message domain.Message, kontek context.Context) error
@@ -53,7 +58,49 @@ func (repo OrchestratorRepo) ViewOrchesSteps(incoming_message *domain.Message, k
 		return ""
 	}
 
-	log.Printf("topic dari db: %s", topic)
+	return topic
+}
+
+func (repo OrchestratorRepo) ViewOrchesFailStep(incoming_message *domain.Message, kontek context.Context) string {
+	query := `
+	SELECT 
+	    kafka_topic 
+	FROM 
+	    orches_routes
+	WHERE 
+	    id = (
+	    	SELECT 
+	    	    max(id) 
+    		FROM 
+    		    orches_routes 
+    		WHERE 
+    		    step_type = $1
+      		AND 
+    		    id < (
+          			SELECT 
+          			    id 
+          			FROM 
+          			    orches_routes 
+          			WHERE 
+          			    step_type = $1
+            		AND 
+          			    step_name = $2
+      )
+);
+	`
+	var topic string
+	err := repo.db.QueryRowContext(kontek, query, incoming_message.OrderType, incoming_message.OrderService).Scan(&topic)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			incoming_message.RespCode = 404
+			incoming_message.RespStatus = "Not Found"
+			incoming_message.RespMessage = "FAILED data of that step type in database 🚨💀"
+			log.Printf("No topic found for step_type: %s and step_name: %s", incoming_message.OrderType, incoming_message.OrderService)
+			return ""
+		}
+		return ""
+	}
+
 	return topic
 }
 
@@ -61,18 +108,16 @@ func (repo OrchestratorRepo) OrchesLog(message domain.Message, kontek context.Co
 
 	query := `
 	INSERT INTO 
-	    orches_logs (order_type, step_name, user_id, item_id,
+	    orches_logs (order_id, order_type, step_name, user_id, item_id,
 	                amount, resp_code, resp_status, resp_message,
 	                payload)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
-	_, err := repo.db.ExecContext(kontek, query, message.OrderType, message.OrderService, message.UserId, message.ItemID, message.Amount, message.RespCode, message.RespStatus, message.RespMessage, message)
+	_, err := repo.db.ExecContext(kontek, query, message.OrderID, message.OrderType, message.OrderService, message.UserId, message.ItemID, message.Amount, message.RespCode, message.RespStatus, message.RespMessage, message)
 	if err != nil {
 		return err
 	}
-
-	log.Printf("message: %v", message)
 
 	return nil
 }

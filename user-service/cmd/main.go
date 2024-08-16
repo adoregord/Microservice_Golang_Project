@@ -13,7 +13,7 @@ import (
 
 func main() {
 
-	initialize.StartConsumeFromOrder()
+	initialize.StartConsume()
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

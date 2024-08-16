@@ -13,6 +13,7 @@ func SetupRoutes(h handler.OrderHandlerInterface) *gin.Engine {
 	orderRoutes := router.Group("/order")
 	{
 		orderRoutes.POST("/", h.OrderInit)
+		orderRoutes.PATCH("/edit-retry", h.OrderEditRetry)
 	}
 
 	return router
