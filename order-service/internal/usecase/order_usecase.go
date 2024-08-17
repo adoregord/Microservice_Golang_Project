@@ -98,8 +98,6 @@ func (uc OrderUsecase) OrderRetry(orderRetry *domain.RetryOrder, kontek context.
 	// set message order service to order init
 	message.OrderService = "Order Init"
 	message.RespMessage = "EDIT and RETRY order"
-	message.RespStatus = "OK"
-	message.RespCode = 200
 
 	// Marshall the incoming message struct to JSON
 	msgValue, err := json.Marshal(message)
