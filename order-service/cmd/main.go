@@ -7,11 +7,11 @@ import (
 )
 
 func main() {
-	database, err := database.DBConnection()
+	db, err := database.DBConnection()
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer database.Close()
+	defer db.Close()
 
-	initialize.StartConsumer(database)
+	initialize.StartConsumer(db)
 }

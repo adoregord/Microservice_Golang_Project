@@ -17,8 +17,8 @@ import (
 func StartConsumer(db *sql.DB) {
 	kafkaConfig := domain.KafkaConfig{
 		Brokers: []string{"127.0.0.1:29092"},
-		GroupID: "Order_Kafka_Consumer",
-		Topic:   "order_topic", // topic that want to be listened
+		GroupID: "order_kafka_consumer",
+		Topics:  []string{"order_topic"}, // topic that want to be listened
 	}
 
 	// setup kafka producer for kafka for user and package
@@ -43,7 +43,7 @@ func StartConsumer(db *sql.DB) {
 
 	handler := kafka.NewMessageHandler(producer, uc)
 
-	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, []string{kafkaConfig.Topic}, handler)
+	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, kafkaConfig.Topics, handler)
 	if err != nil {
 		log.Fatalf("Failed to create consumer: %v", err)
 	}

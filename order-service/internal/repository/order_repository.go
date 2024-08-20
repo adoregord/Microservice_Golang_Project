@@ -90,7 +90,7 @@ func (repo OrderRepo) EditRetryOrder(orderRetryReq *domain.RetryOrder, kontek co
 	item_id = $2,
 	amount = $3
 	where
-	id = $4 and user_id = $5 and resp_message like '%FAILED%'
+	id = $4 and user_id = $5 and resp_code > 399 and resp_code < 500
 	returning id, order_type, user_id, item_id, amount, resp_code, resp_message
 	`
 
@@ -104,7 +104,7 @@ func (repo OrderRepo) EditRetryOrder(orderRetryReq *domain.RetryOrder, kontek co
 		&msg.RespMessage,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || msg.RespCode >= 500 {
 			return nil, errors.New("theres no order for this id or ure not allowed to retry")
 		}
 		return nil, err

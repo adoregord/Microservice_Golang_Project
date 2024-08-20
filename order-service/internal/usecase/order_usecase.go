@@ -17,109 +17,95 @@ type OrderUsecaseInterface interface {
 	UpdateOrderDetails
 	OrderRetry
 }
-
 type OrderInit interface {
-	OrderInit(orderReq *domain.OrderRequest, kontek context.Context) (*domain.Message, error)
+	OrderInit(orderReq *domain.OrderRequest, ctx context.Context) (*domain.Message, error)
 }
 type UpdateOrderDetails interface {
-	UpdateOrderDetails(msg *sarama.ConsumerMessage, kontek context.Context) error
+	UpdateOrderDetails(msg *sarama.ConsumerMessage, ctx context.Context) error
 }
 type OrderRetry interface {
-	OrderRetry(orderRetry *domain.RetryOrder, kontek context.Context) (*domain.Message, error)
+	OrderRetry(orderRetry *domain.RetryOrder, ctx context.Context) (*domain.Message, error)
 }
 
 type OrderUsecase struct {
 	repo     repository.OrderRepoInterface
-	Producer sarama.SyncProducer
+	producer sarama.SyncProducer
 }
 
-func NewOrderUsecase(Repo repository.OrderRepoInterface, producer sarama.SyncProducer) OrderUsecaseInterface {
-	return OrderUsecase{
-		repo:     Repo,
-		Producer: producer,
+func NewOrderUsecase(repo repository.OrderRepoInterface, producer sarama.SyncProducer) OrderUsecaseInterface {
+	return &OrderUsecase{
+		repo:     repo,
+		producer: producer,
 	}
 }
 
-func (uc OrderUsecase) OrderInit(orderReq *domain.OrderRequest, kontek context.Context) (*domain.Message, error) {
-	topic := "orchestrator_topic" // will send to this topic always
-
-	// save to db first
-	message, err := uc.repo.StoreOrderDetails(*orderReq, kontek)
+func (uc *OrderUsecase) OrderInit(orderReq *domain.OrderRequest, ctx context.Context) (*domain.Message, error) {
+	// Save to db first
+	message, err := uc.repo.StoreOrderDetails(*orderReq, ctx)
 	if err != nil {
 		return nil, err
 	}
-	// set message order service to order init
+
 	message.OrderService = "Order Init"
 
-	// Marshall the incoming message struct to JSON
-	msgValue, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("Failed to marshal incoming message: %s\n", err)
-		return nil, err
-	}
-
-	//change to string
-	key := strconv.Itoa(orderReq.ID)
 	// Send the message to Kafka
-	_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
-		Topic: topic,
-		Key:   sarama.ByteEncoder(key),
-		Value: sarama.ByteEncoder(msgValue),
-	})
-
-	if err != nil {
-		log.Printf("Failed to send message: %s\n", err)
+	if err := uc.sendMessageToKafka(message, orderReq.ID); err != nil {
 		return nil, err
 	}
 
-	log.Printf("Message sent to %s with data %v", topic, message)
+	log.Printf("Message sent to orchestrator_topic with data %v", message)
 	return message, nil
 }
 
-func (uc OrderUsecase) UpdateOrderDetails(msg *sarama.ConsumerMessage, kontek context.Context) error {
-	// Parse the incoming message
-	var incoming_message domain.Message
-	if err := json.Unmarshal(msg.Value, &incoming_message); err != nil {
+func (uc *OrderUsecase) UpdateOrderDetails(msg *sarama.ConsumerMessage, ctx context.Context) error {
+	var incomingMessage domain.Message
+	if err := json.Unmarshal(msg.Value, &incomingMessage); err != nil {
 		return err
 	}
 
-	return uc.repo.UpdateOrderDetails(incoming_message, kontek)
+	return uc.repo.UpdateOrderDetails(incomingMessage, ctx)
 }
 
-func (uc OrderUsecase) OrderRetry(orderRetry *domain.RetryOrder, kontek context.Context) (*domain.Message, error) {
-
-	topic := "orchestrator_topic" // will send to this topic always
-
-	// save update the db first
-	message, err := uc.repo.EditRetryOrder(orderRetry, kontek)
+func (uc *OrderUsecase) OrderRetry(orderRetry *domain.RetryOrder, ctx context.Context) (*domain.Message, error) {
+	// Save update the db first
+	message, err := uc.repo.EditRetryOrder(orderRetry, ctx)
 	if err != nil {
 		return nil, err
 	}
-	// set message order service to order init
+
 	message.OrderService = "Order Init"
 	message.RespMessage = "EDIT and RETRY order"
+	message.RespCode = 200
 
-	// Marshall the incoming message struct to JSON
-	msgValue, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("Failed to marshal incoming message: %s\n", err)
+	// Send the message to Kafka
+	if err := uc.sendMessageToKafka(message, orderRetry.OrderID); err != nil {
 		return nil, err
 	}
 
-	//change to string
-	key := strconv.Itoa(orderRetry.OrderID)
-	// Send the message to Kafka
-	_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
+	log.Printf("Message sent to orchestrator_topic with data %v", message)
+	return message, nil
+}
+
+func (uc *OrderUsecase) sendMessageToKafka(message *domain.Message, keyID int) error {
+	topic := "orchestrator_topic"
+
+	msgValue, err := json.Marshal(message)
+	if err != nil {
+		log.Printf("Failed to marshal message: %s\n", err)
+		return err
+	}
+
+	key := strconv.Itoa(keyID)
+	_, _, err = uc.producer.SendMessage(&sarama.ProducerMessage{
 		Topic: topic,
-		Key:   sarama.ByteEncoder(key),
+		Key:   sarama.StringEncoder(key),
 		Value: sarama.ByteEncoder(msgValue),
 	})
 
 	if err != nil {
-		log.Printf("Failed to send message: %s\n", err)
-		return nil, err
+		log.Printf("Failed to send message to Kafka: %s\n", err)
+		return err
 	}
 
-	log.Printf("Message sent to %s with data %v", topic, message)
-	return message, nil
+	return nil
 }
