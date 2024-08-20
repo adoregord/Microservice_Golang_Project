@@ -36,8 +36,22 @@ func (h MessageHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sar
 	}
 
 	for msg := range claim.Messages() {
-		if err := h.Usecase.SendMessage(context.Background(), msg); err != nil {
-			log.Print(err)
+		if msg.Topic == "activation_key_reserve" {
+			if err := h.Usecase.SendMessage(context.Background(), msg); err != nil {
+				log.Print(err)
+			}
+		} else if msg.Topic == "activation_key_rollback" {
+			if err := h.Usecase.RollbackItem(context.Background(), msg); err != nil {
+				log.Print(err)
+			}
+		} else if msg.Topic == "item_reserve" {
+			if err := h.Usecase.SendMessage(context.Background(), msg); err != nil {
+				log.Print(err)
+			}
+		} else if msg.Topic == "item_rollback" {
+			if err := h.Usecase.RollbackItem(context.Background(), msg); err != nil {
+				log.Print(err)
+			}
 		}
 		sess.MarkMessage(msg, "")
 	}

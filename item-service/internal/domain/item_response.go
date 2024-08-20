@@ -7,7 +7,7 @@ type Response struct {
 }
 
 type Data struct {
-	ID     int `json:"id"`
-	Amount int `json:"amount"`
-	Price  int `json:"price"`
+	ID       int `json:"id"`
+	Quantity int `json:"quantity"`
+	Price    int `json:"price"`
 }
