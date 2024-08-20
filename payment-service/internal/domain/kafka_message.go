@@ -1,6 +1,5 @@
 package domain
 
-// IncomingMessage represents the structure of the incoming messages
 type Message struct {
 	OrderID      int    `json:"orderID"`
 	OrderType    string `json:"orderType"`
@@ -12,4 +11,5 @@ type Message struct {
 	RespCode     int    `json:"respCode,omitempty"`
 	Total        int    `json:"total,omitempty"`
 	Amount       int    `json:"amount"`
+	Retry        int    `json:"retry"`
 }

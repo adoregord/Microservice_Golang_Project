@@ -10,9 +10,9 @@ import (
 )
 
 type KafkaConsumer struct {
-	consumer sarama.ConsumerGroup
-	handler  sarama.ConsumerGroupHandler
-	topics   []string
+	Consumer sarama.ConsumerGroup
+	Handler  sarama.ConsumerGroupHandler
+	Topics   []string
 }
 
 type MessageHandler struct {
@@ -55,15 +55,15 @@ func NewKafkaConsumer(brokers []string, groupID string, topics []string, msg *Me
 	}
 
 	return &KafkaConsumer{
-		consumer: consumer,
-		topics:   topics,
-		handler:  msg,
+		Consumer: consumer,
+		Topics:   topics,
+		Handler:  msg,
 	}, nil
 }
 
 func (kc *KafkaConsumer) Consume(ctx context.Context) error {
 	for {
-		err := kc.consumer.Consume(ctx, kc.topics, kc.handler)
+		err := kc.Consumer.Consume(ctx, kc.Topics, kc.Handler)
 		if err != nil {
 			return err
 		}
@@ -74,9 +74,9 @@ func (kc *KafkaConsumer) Consume(ctx context.Context) error {
 }
 
 func (kc *KafkaConsumer) Close() error {
-	return kc.consumer.Close()
+	return kc.Consumer.Close()
 }
 
-func (kc *KafkaConsumer) SetHandler(handler sarama.ConsumerGroupHandler) {
-	kc.handler = handler
-}
+//func (kc *KafkaConsumer) SetHandler(handler sarama.ConsumerGroupHandler) {
+//	kc.Handler = handler
+//}
