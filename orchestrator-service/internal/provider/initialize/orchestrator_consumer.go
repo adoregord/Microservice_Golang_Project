@@ -15,7 +15,7 @@ import (
 func StartConsumer(db *sql.DB) {
 	kafkaConfig := domain.KafkaConfig{
 		Brokers: []string{"127.0.0.1:29092"},
-		GroupID: "Orchestrator_Kafka_Consumer",
+		GroupID: "orchestrator_kafka_consumer",
 		Topic:   "orchestrator_topic", // topic that want to be listened
 	}
 

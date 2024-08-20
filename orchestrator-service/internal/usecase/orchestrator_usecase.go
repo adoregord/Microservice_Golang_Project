@@ -7,7 +7,6 @@ import (
 	"log"
 	"microservice_orchestrator/internal/domain"
 	"microservice_orchestrator/internal/repository"
-	"strings"
 )
 
 type OrchestratorUsecaseInterface interface {
@@ -37,11 +36,12 @@ func NewOrchestratorUsecase(producer sarama.SyncProducer, repo repository.Orches
 func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *sarama.ConsumerMessage) error {
 	// Parse the incoming message
 	var incoming_message domain.Message
-	log.Println("ini Topik: ", msg.Topic)
 	if err := json.Unmarshal(msg.Value, &incoming_message); err != nil {
+
 		return err
 	}
 
+	// log the orches steps
 	defer func() {
 		err := uc.OrchesLog(incoming_message, kontek)
 		if err != nil {
@@ -50,32 +50,59 @@ func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *saram
 	}()
 
 	var topic string
-	if strings.Contains(incoming_message.RespMessage, "FAILED") {
+	rollbackTriggered := false
+
+	switch {
+	// Condition for 5xx errors: server errors
+	case incoming_message.RespCode >= 500:
 		if incoming_message.Retry < 3 {
-			incoming_message.Retry += 1
-			topic = uc.Repo.ViewOrchesFailStep(&incoming_message, kontek)
-
+			log.Println("Retrying message for order: ", incoming_message.OrderID)
+			incoming_message.Retry++
+			topic = uc.Repo.GetNextTopic(&incoming_message, true, kontek)
 		} else {
-			topic = "order_topic"
+			// Rollback after maximum retries
+			log.Println("Maximum retries reached for order: ", incoming_message.OrderID)
+			log.Println("Triggering rollback")
+			topic = uc.Repo.GetRollbackTopic(&incoming_message, kontek)
+			rollbackTriggered = true
 		}
-		responseBytes, err := json.Marshal(incoming_message)
-		if err != nil {
-			return err
-		}
-		_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
-			Topic: topic,
-			Key:   sarama.ByteEncoder(msg.Key),
-			Value: sarama.ByteEncoder(responseBytes),
-		})
-		if err != nil {
-			return err
-		}
-		log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
-		return nil
-	}
-	topic = uc.Repo.ViewOrchesSteps(&incoming_message, kontek)
-	// check if incoming message contains FAILED then it will be automatically go back to order
 
+	// Condition for 4xx errors: client errors
+	case incoming_message.RespCode >= 400 && incoming_message.RespCode < 500:
+		// Immediately trigger rollback without retry
+		log.Printf("Order Failed for order: %d, because: %s", incoming_message.OrderID, incoming_message.RespMessage)
+		topic = uc.Repo.GetRollbackTopic(&incoming_message, kontek)
+		if topic != "-" {
+			rollbackTriggered = true
+		}
+
+	// Normal processing for successful responses
+	default:
+		topic = uc.Repo.GetNextTopic(&incoming_message, false, kontek)
+	}
+
+	// Send message to the determined topic
+	if topic != "-" {
+		err := uc.sendMessage(kontek, topic, msg.Key, &incoming_message)
+		if err != nil {
+			return err
+		}
+	}
+
+	// If rollback was triggered, ensure we send a message to order_topic as well
+	if rollbackTriggered || topic == "order_topic" || incoming_message.RespCode >= 400 {
+		if err := uc.sendMessage(kontek, "order_topic", msg.Key, &incoming_message); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uc OrchestratorUsecase) OrchesLog(message domain.Message, kontek context.Context) error {
+	return uc.Repo.OrchesLog(message, kontek)
+}
+
+func (uc OrchestratorUsecase) sendMessage(kontek context.Context, topic string, key []byte, incoming_message *domain.Message) error {
 	responseBytes, err := json.Marshal(incoming_message)
 	if err != nil {
 		return err
@@ -83,17 +110,13 @@ func (uc OrchestratorUsecase) ViewOrchesSteps(kontek context.Context, msg *saram
 
 	_, _, err = uc.Producer.SendMessage(&sarama.ProducerMessage{
 		Topic: topic,
-		Key:   sarama.ByteEncoder(msg.Key),
+		Key:   sarama.ByteEncoder(key),
 		Value: sarama.ByteEncoder(responseBytes),
 	})
 	if err != nil {
 		return err
 	}
+
 	log.Printf("Message sent to %s: %s\n\n", topic, string(responseBytes))
-
 	return nil
-}
-
-func (uc OrchestratorUsecase) OrchesLog(message domain.Message, kontek context.Context) error {
-	return uc.Repo.OrchesLog(message, kontek)
 }
