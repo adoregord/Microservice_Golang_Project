@@ -4,7 +4,7 @@ import "github.com/IBM/sarama"
 
 type KafkaConfig struct {
 	GroupID string `json:"omitempty"`
-	Topic   string
+	Topics  []string
 	Brokers []string
 }
 

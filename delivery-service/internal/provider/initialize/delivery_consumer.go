@@ -14,7 +14,7 @@ func StartConsume() {
 	kafkaConfig := domain.KafkaConfig{
 		Brokers: []string{"127.0.0.1:29092"}, // My Kafka broker address
 		GroupID: "delivery-consumer-group",
-		Topic:   "delivery_key", // message that want to be listened
+		Topics:  []string{"delivery_key", "delivery_item"}, // message that want to be listened
 	}
 
 	// setup kafka producer for kafka for user and package
@@ -28,7 +28,7 @@ func StartConsume() {
 	uc := usecase.NewDeliveryUsecase(producer)
 	handler := kafka.NewMessageHandler(producer, uc)
 
-	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, []string{kafkaConfig.Topic}, handler)
+	consumer, err := kafka.NewKafkaConsumer(kafkaConfig.Brokers, kafkaConfig.GroupID, kafkaConfig.Topics, handler)
 	if err != nil {
 		log.Fatalf("Failed to create consumer: %v", err)
 	}
