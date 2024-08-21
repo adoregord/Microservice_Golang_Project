@@ -4,15 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/IBM/sarama"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"net/http"
 	"net/http/httptest"
 	"payment_microservice/internal/domain"
 	"payment_microservice/internal/usecase"
 	"testing"
-
-	"github.com/IBM/sarama"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 // MockProducer is a mock implementation of sarama.SyncProducer
@@ -21,43 +20,43 @@ type MockProducer struct {
 }
 
 func (m *MockProducer) SendMessages(msgs []*sarama.ProducerMessage) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(msgs)
+	return args.Error(0)
 }
 
 func (m *MockProducer) TxnStatus() sarama.ProducerTxnStatusFlag {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called()
+	return args.Get(0).(sarama.ProducerTxnStatusFlag)
 }
 
 func (m *MockProducer) IsTransactional() bool {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called()
+	return args.Bool(0)
 }
 
 func (m *MockProducer) BeginTxn() error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called()
+	return args.Error(0)
 }
 
 func (m *MockProducer) CommitTxn() error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called()
+	return args.Error(0)
 }
 
 func (m *MockProducer) AbortTxn() error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called()
+	return args.Error(0)
 }
 
 func (m *MockProducer) AddOffsetsToTxn(offsets map[string][]*sarama.PartitionOffsetMetadata, groupId string) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(offsets, groupId)
+	return args.Error(0)
 }
 
 func (m *MockProducer) AddMessageToTxn(msg *sarama.ConsumerMessage, groupId string, metadata *string) error {
-	//TODO implement me
-	panic("implement me")
+	args := m.Called(msg, groupId, metadata)
+	return args.Error(0)
 }
 
 func (m *MockProducer) SendMessage(msg *sarama.ProducerMessage) (partition int32, offset int64, err error) {
@@ -212,9 +211,6 @@ func TestPaymentUsecase_SendMessage(t *testing.T) {
         "retry": "not_an_integer"
     }`
 
-		// Remove the mock expectation for SendMessage
-		// mockProducer.On("SendMessage", mock.Anything).Return(int32(0), int64(0), nil)
-
 		err := uc.SendMessage(context.Background(), &sarama.ConsumerMessage{Value: []byte(invalidJSON), Key: []byte("1")})
 
 		assert.Error(t, err)
@@ -255,3 +251,95 @@ func TestPaymentUsecase_SendMessage(t *testing.T) {
 	})
 
 }
+
+//func TestPaymentUsecase_HTTPClientTimeout(t *testing.T) {
+//	incomingMsg := &sarama.ConsumerMessage{
+//		Value: []byte(`{"OrderID":1,"OrderType":"payment","UserId":"1","ItemID":1,"Amount":1000,"Total":500}`),
+//		Key:   []byte("1"),
+//	}
+//	mockProducer := new(MockProducer)
+//	uc := usecase.NewPaymentUsecase(mockProducer)
+//
+//	// Create a server that simulates a timeout
+//	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//		time.Sleep(15 * time.Second) // Sleep to simulate timeout
+//	}))
+//	defer mockServer.Close()
+//
+//	uc.SetHTTPClient(mockServer.Client())
+//
+//	err := uc.SendMessage(context.Background(), incomingMsg)
+//	assert.Error(t, err)
+//	assert.Contains(t, err.Error(), "Client.Timeout exceeded")
+//	mockProducer.AssertNotCalled(t, "SendMessage", mock.Anything)
+//}
+
+//func TestPaymentUsecase_HTTPResponse404(t *testing.T) {
+//	incomingMsg := &sarama.ConsumerMessage{
+//		Value: []byte(`{"OrderID":1,"OrderType":"payment","UserId":"1","ItemID":1,"Amount":1000,"Total":500}`),
+//		Key:   []byte("1"),
+//	}
+//	mockProducer := new(MockProducer)
+//	uc := usecase.NewPaymentUsecase(mockProducer)
+//
+//	// Mock 404 response
+//	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//		w.WriteHeader(http.StatusNotFound)
+//	}))
+//	defer mockServer.Close()
+//
+//	uc.SetHTTPClient(mockServer.Client())
+//
+//	err := uc.SendMessage(context.Background(), incomingMsg)
+//	assert.NoError(t, err)
+//	// Assert the expected message properties here
+//	mockProducer.AssertExpectations(t)
+//}
+
+func TestPaymentUsecase_KafkaSendError(t *testing.T) {
+	incomingMsg := &sarama.ConsumerMessage{
+		Value: []byte(`{"OrderID":1,"OrderType":"payment","UserId":"1","ItemID":1,"Amount":1000,"Total":500}`),
+		Key:   []byte("1"),
+	}
+	mockProducer := new(MockProducer)
+	uc := usecase.NewPaymentUsecase(mockProducer)
+
+	mockProducer.On("SendMessage", mock.Anything).Return(int32(0), int64(0), errors.New("kafka error"))
+
+	err := uc.SendMessage(context.Background(), incomingMsg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "kafka error")
+	mockProducer.AssertExpectations(t)
+}
+
+//func TestPaymentUsecase_PaymentSuccess(t *testing.T) {
+//	incomingMsg := &sarama.ConsumerMessage{
+//		Value: []byte(`{"OrderID":1,"OrderType":"payment","UserId":"1","ItemID":1,"Amount":1000,"Total":500}`),
+//		Key:   []byte("1"),
+//	}
+//	mockProducer := new(MockProducer)
+//	uc := usecase.NewPaymentUsecase(mockProducer)
+//
+//	// Mock successful payment response
+//	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+//		response := domain.Response{
+//			Status: "OK",
+//			Data: domain.Data{
+//				ID:      1,
+//				Name:    "User1",
+//				Balance: 1000,
+//			},
+//		}
+//		responseBody, _ := json.Marshal(response)
+//		w.WriteHeader(http.StatusOK)
+//		w.Write(responseBody)
+//	}))
+//	defer mockServer.Close()
+//
+//	uc.SetHTTPClient(mockServer.Client())
+//
+//	err := uc.SendMessage(context.Background(), incomingMsg)
+//	assert.NoError(t, err)
+//	// Assert the expected message properties here
+//	mockProducer.AssertExpectations(t)
+//}

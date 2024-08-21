@@ -181,13 +181,13 @@ func TestOrderRepo_EditRetryOrder_Success(t *testing.T) {
 
 	mock.ExpectQuery(regexp.QuoteMeta(`
 		update orders 
-		set
+			set
 			order_type = $1,
 			item_id = $2,
 			amount = $3
 		where
-			id = $4 and user_id = $5 and resp_message like '%FAILED%'
-		returning id, order_type, user_id, item_id, amount, resp_code, resp_message`)).
+			id = $4 and user_id = $5 and resp_code > 399 and resp_code < 500
+			returning id, order_type, user_id, item_id, amount, resp_code, resp_message`)).
 		WithArgs(orderRetryReq.OrderType, orderRetryReq.ItemID, orderRetryReq.Amount, orderRetryReq.OrderID, orderRetryReq.UserID).
 		WillReturnRows(rows)
 
@@ -215,13 +215,13 @@ func TestOrderRepo_EditRetryOrder_Failure(t *testing.T) {
 
 	mock.ExpectQuery(regexp.QuoteMeta(`
 		update orders 
-		set
+			set
 			order_type = $1,
 			item_id = $2,
 			amount = $3
 		where
-			id = $4 and user_id = $5 and resp_message like '%FAILED%'
-		returning id, order_type, user_id, item_id, amount, resp_code, resp_message`)).
+			id = $4 and user_id = $5 and resp_code > 399 and resp_code < 500
+			returning id, order_type, user_id, item_id, amount, resp_code, resp_message`)).
 		WithArgs(orderRetryReq.OrderType, orderRetryReq.ItemID, orderRetryReq.Amount, orderRetryReq.OrderID, orderRetryReq.UserID).
 		WillReturnError(sql.ErrNoRows)
 

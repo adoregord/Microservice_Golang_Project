@@ -77,6 +77,6 @@ func (kc *KafkaConsumer) Close() error {
 	return kc.Consumer.Close()
 }
 
-func (kc *KafkaConsumer) SetHandler(handler sarama.ConsumerGroupHandler) {
-	kc.Handler = handler
-}
+//func (kc *KafkaConsumer) SetHandler(handler sarama.ConsumerGroupHandler) {
+//	kc.Handler = handler
+//}

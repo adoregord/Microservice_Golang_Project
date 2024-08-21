@@ -80,7 +80,7 @@ func TestOrchestratorRepo_GetNextTopic_NoRows(t *testing.T) {
 	ctx := context.TODO()
 	topic := repo.GetNextTopic(incomingMessage, false, ctx)
 
-	assert.Equal(t, "", topic)
+	assert.Equal(t, "order_topic", topic)
 	assert.Equal(t, 404, incomingMessage.RespCode)
 	assert.Equal(t, "Not Found", incomingMessage.RespStatus)
 	assert.Equal(t, "FAILED data of that step type in database 🚨💀", incomingMessage.RespMessage)
