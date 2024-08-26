@@ -81,7 +81,7 @@ func (uc *UserUsecase) ValidateUser(incoming *domain.Message) error {
 	}
 
 	if responseStruct.Status != "OK" {
-		incoming.RespCode = 404
+		incoming.RespCode = response.StatusCode
 		incoming.RespStatus = responseStruct.Status
 		incoming.RespMessage = fmt.Sprintf("FAILED %s", responseStruct.Message)
 		return nil

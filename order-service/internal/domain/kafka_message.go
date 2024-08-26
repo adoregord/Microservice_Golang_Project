@@ -12,4 +12,5 @@ type Message struct {
 	RespCode     int    `json:"respCode,omitempty"`
 	Total        int    `json:"total,omitempty"`
 	Amount       int    `json:"amount"`
+	Retry        int    `json:"retry"`
 }
